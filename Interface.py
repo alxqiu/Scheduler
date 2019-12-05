@@ -22,40 +22,41 @@ class Executor():
         #recode this section into taking host and port as params
 
         print(self.url_str)
+    
+    #condensed into the signature of the concurrent.futures.executor.submit() method, 
+    #with additional params noted in a separate dict: job_config = 
+    #       {'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
+        ##new signature:
+            #submit(fn, *args, job_config, **kwargs):
+    def submit(self, fn, *args, job_config = {}, **kwargs):         
+        data  = {'fn': fn, 'func_args': args, 'func_kwargs': kwargs}
+        default_config = {'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
+        if job_config is not None:
+            for ky in job_config.keys():
+                assert (ky in ('memory', 'priority', 'retries', 'run_now'))
+            #adds default vals to missing vals, after checking for validity
+            default_config.update(job_config)
 
-    def submit(self, fn, job_name, memory, *args, priority = 1, retries = 0, run_now = False, **kwargs):
-        #just as fn denotes the callable in futures, the submit(job_name....) should schedule the callable          
-        data  = {'fn': fn, 'job_name': job_name, 'memory': memory, 'priority': priority, 
-                 'retries': retries, 'run_now': run_now, 'func_args': args, 'func_kwargs': kwargs}
-        ###
-            #problem: based on the response of the server, the names of the args and kwargs can be returned but not the values
-            #current syntax appears to be correct, that won't spawn runtime error
-        ###
-        r = requests.post(self.url_str, json = data)
-            #check if the response takes the actual one:
-            #define here what the server should return back to me
-            #define acceptable values here, perhaps write documentation for the clear inputs/returns from the server.
-            #perhaps assertions.    
+        #if input is none, the thing gets updated w default vals
+        job_config.update(default_config)
+        data.update(job_config)
+        r = requests.post(self.url_str, json = data)    
         assert r.json() is not None
-            #not sure what this would look like for a lot of other urls though...
-            #so not sure what to check for.  
-
-        new_future = Future(fn, self.url_str, memory, priority, retries, args, kwargs)
-        #the object doesn't have the job specifications itself, function_name should be the path
-       
+        #define here what the server should return back to me
+            #define acceptable values here, perhaps write documentation for the clear inputs/returns from the server.
+            #perhaps assertions.
+        new_future = Future(fn, self.url_str, job_config, args, kwargs)
+        
         #return new_future
         return r
 
-    #next I want to include a function that will grab info from the server
-    #   we want:
+    #INTERNAL FUNCTION: grab info from server
         #memory, priority, retries, running, success, exception
-
-    def grab(self, fn, job_name):
+    def _grab(self, fn, query_payload = {'memory': None, 'priority': None, 'retries': None, 
+                                            'running': None, 'success': False, 'exception': None}):
         #params for the desired info to grab from the server
-        payload = {'fn':fn, 'job name': job_name, 'memory': None,  'priority': None, 
-                   'retries': None, 'running': None, 'query': True, 'success': False, 'exception': None} 
-            #do not need to get information from the job specific args and kwargs
-        r = request.get(url = self.url_str, params = payload)
+        query_payload.update({'fn': fn})
+        r = request.get(url = self.url_str, json = query_payload)
             #information returned by server is defined by server side script.
 
         assert r.json() is not None
@@ -64,9 +65,8 @@ class Executor():
         
     def shutdown(self, wait = True):
         #grab server info and try to assess if job is done or not
-        self.server_info
+        self.url_str
 
-        args = True
         #get result from Future.running() to see if the jobs can be shut down
         #don't need specific names, just check all available
 
@@ -78,19 +78,14 @@ class Executor():
 #this is all about the references to the actual job object, a means to reference from client
 #the future object is responsible for getting inquiries from the client about the server
 #and should keep all the info for the server and name, and facilitate communication between server and client
+    #no need to predefine default vals for job_config, since that's already done in the submit method
+
 class Future():
-    def __init__(self, function_name, server_info, memory, priority, retries, *args, **kwargs):
-       self.job_name = function_name
-       #self.server_info = server_info
-       #assert ((self.server_info[0] is not None) and (self.server_info[1] is not None))
-       #self.url_str = "http://" + self.server_info[0] + ":" + self.server_info[1] + "/"
-        #self.url_str = "https:/template.url/generic_page/" + urllib.parse.urlencode()
-       #if self.server_info[2] is not None:
-       #     self.url_str += '/'+ self.server_info[2]
-       #if self.server_info[3] is not None:
-            #self.url_str += "/" + self.server_info[3]
-       self.url_str = server_info
-    #should I include a "force" parameter?
+    def __init__(self, fn, url_str, job_config, *args, **kwargs):
+       self.fn = fn
+       self.url_str = url_str
+       self.func_args = args
+       self.func_kwargs = kwargs
     def cancel(self):
 
         return False
@@ -116,5 +111,5 @@ class Future():
         #check for successful run without any exceptions
 
         return None
-    def add_done_callback(self, function_name):
-        function_name
+    def add_done_callback(self, fn):
+        fn
