@@ -3,7 +3,6 @@
 #for this part, literally just work on the client side, NOTHING that should be done on the server side
 #therefore, this should have the interface without any job_template class to make objects, 
 #don't need to have any sort of object creation here for jobs
-
 #research how to write the client script:
     #research "requests"", use "posts" and json, and pickle
         #pickle converts arguments into string, and trns into json
@@ -28,64 +27,71 @@ class Executor():
     #       {'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
         ##new signature:
             #submit(fn, *args, job_config, **kwargs):
-    def submit(self, fn, *args, job_config = {}, **kwargs):         
-        data  = {'fn': fn, 'func_args': args, 'func_kwargs': kwargs}
-        default_config = {'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
-        if job_config is not None:
-            for ky in job_config.keys():
-                assert (ky in ('memory', 'priority', 'retries', 'run_now'))
-            #adds default vals to missing vals, after checking for validity
-            default_config.update(job_config)
+    def submit(self, fn, *args, job_config = {}, **kwargs):
 
-        #if input is none, the thing gets updated w default vals
-        job_config.update(default_config)
-        data.update(job_config)
-        r = requests.post(self.url_str, json = data)    
-        assert r.json() is not None
-        #define here what the server should return back to me
-            #define acceptable values here, perhaps write documentation for the clear inputs/returns from the server.
-            #perhaps assertions.
-        new_future = Future(fn, self.url_str, job_config, args, kwargs)
+        data  = {'fn': fn, 'func_args': args, 'func_kwargs': kwargs}
+            #the submitted callable "fn" should be executed as fn(*args, **kwargs)
+        default_config = {'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
+        #if input is none, we send default values
+        #check for elements present in job_config but not in default keys, then adding appropriate values to default
+        if job_config is not None:
+            assert len(set(job_config.keys()) - set(default_config.keys())) == 0
+                #I would have used (if setA.difference(setB) is None), but difference returns 'set()'
+                #and I don't know how to express that as a value to compare     
+            default_config.update(job_config)
+        data.update(default_config)
+
+        r = requests.post(self.url_str + '/handlePOSTRequest', json = data)  
+            ###so far r is accessible and modificable by the ServerSideScript
+
+        #defs of acceptable returns
+        assert r.status_code != 404
+        assert r.json()['priority'] is not None
+        assert r.json()['memory'] is not None
+            #this type of formatting works, reference data through r.json()
+        print(r.text)
+
+        new_future = Future(fn, self.url_str, args, kwargs)
         
-        #return new_future
-        return r
+        return new_future #main use, return r for testing
+        #return r 
+            
 
     #INTERNAL FUNCTION: grab info from server
         #memory, priority, retries, running, success, exception
-    def _grab(self, fn, query_payload = {'memory': None, 'priority': None, 'retries': None, 
-                                            'running': None, 'success': False, 'exception': None}):
-        #params for the desired info to grab from the server
-        query_payload.update({'fn': fn})
-        r = request.get(url = self.url_str, json = query_payload)
-            #information returned by server is defined by server side script.
+        #minimal info in the query payload that is sent over, just wanted to have something
+        #for the server to know that there is a request to GET info
 
+        #prevent this from being accessible later...
+    def _grab(self, fn):
+        query_payload = {'fn': fn, '_grab': True}
+        r = requests.get(url = self.url_str + '/handleGETRequest')
+        assert r.status_code != 404
         assert r.json() is not None
-            #assert other elements here
         return r.json()
         
     def shutdown(self, wait = True):
-        #grab server info and try to assess if job is done or not
-        self.url_str
+        while wait:
+            r = _grab(None)
+            if (r['running'] == True):
+                wait = False
+        #at the end of waiting, send a post to shut down operations
+        r = request.post(url = self.url_str, json = {'shutdown': True})
 
-        #get result from Future.running() to see if the jobs can be shut down
-        #don't need specific names, just check all available
-
-        if wait:
-            args = False
-        return args
+        #add in thing for r to have success attr for this part
+        return r.success
             
 
-#this is all about the references to the actual job object, a means to reference from client
-#the future object is responsible for getting inquiries from the client about the server
-#and should keep all the info for the server and name, and facilitate communication between server and client
-    #no need to predefine default vals for job_config, since that's already done in the submit method
-
+#future doesn't need much aside from a means to identify a job and the way to contact it in the server
 class Future():
-    def __init__(self, fn, url_str, job_config, *args, **kwargs):
+    def __init__(self, fn, url_str, *args, **kwargs):
        self.fn = fn
        self.url_str = url_str
        self.func_args = args
        self.func_kwargs = kwargs
+    def testinfo(self):
+        return str([self.fn, self.url_str, self.func_args, self.func_kwargs])
+        #this part works
     def cancel(self):
 
         return False
