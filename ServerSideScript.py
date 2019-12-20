@@ -13,10 +13,10 @@ def default():
     return 'Up and running!'
 
 #@ServerSideScript.route('/handleRequest', methods = ['POST', 'GET'])
+#just returns the json of whatever was sent through request
 @ServerSideScript.route('/handlePOSTRequest', methods = ['POST'])
 def handlePOSTRequest():
     request_data = request.get_json()
-        
     return (request_data)
 
 @ServerSideScript.route('/handleGETRequest', methods = ['GET'])
