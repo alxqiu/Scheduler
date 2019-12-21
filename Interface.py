@@ -41,34 +41,38 @@ class Executor():
             default_config.update(job_config)
         data.update(default_config)
 
-        r = requests.post(self.url_str + '/handlePOSTRequest', json = data)  
+        r = requests.post(self.url_str + '/submitRequest', json = data)  
             ###so far r is accessible and modificable by the ServerSideScript
-
         #defs of acceptable returns
         assert r.status_code != 404
         assert r.json()['priority'] is not None
         assert r.json()['memory'] is not None
+        assert r.json()['retries'] is not None
+        assert r.json()['job_id'] is not None
             #this type of formatting works, reference data through r.json()
-        print(r.text)
+        print("r.text:\n\t" + r.text)
+        job_id = r.json()['job_id']
 
-        new_future = Future(fn, self.url_str, args, kwargs)
+        #make sure job_id can be saved in the future object
+        new_future = Future(fn, job_id, self.url_str, args, kwargs)
+        return new_future  
         
-        return new_future #main use, return r for testing
-        #return r 
-            
-
+        
     #INTERNAL FUNCTION: grab info from server
         #memory, priority, retries, running, success, exception
         #minimal info in the query payload that is sent over, just wanted to have something
         #for the server to know that there is a request to GET info
+            ###prevent this from being accessible later...
 
-        #prevent this from being accessible later...
-    def _grab(self, fn):
-        query_payload = {'fn': fn, '_grab': True}
-        r = requests.get(url = self.url_str + '/handleGETRequest')
+        #needs to work with job_id
+    #replace all the business in fn with job_id
+    def _grab(self, job_id):
+        query_payload = {'job_id': job_id, '_grab': True}
+        r = requests.get(url = self.url_str + '/handleGETRequest', json = query_payload)
         assert r.status_code != 404
         assert r.json() is not None
         return r.json()
+       
         
     def shutdown(self, wait = True):
         while wait:
@@ -84,14 +88,23 @@ class Executor():
 
 #future doesn't need much aside from a means to identify a job and the way to contact it in the server
 class Future():
-    def __init__(self, fn, url_str, *args, **kwargs):
+    def __init__(self, fn, job_id, url_str, *args, **kwargs):
        self.fn = fn
+       self.job_id = job_id
        self.url_str = url_str
        self.func_args = args
        self.func_kwargs = kwargs
-    def testinfo(self):
-        return str([self.fn, self.url_str, self.func_args, self.func_kwargs])
-        #this part works
+    def future_info(self):
+        info_dict = {
+            'fn': self.fn, 
+            'job_id': self.job_id, 
+            'url_str': self.url_str, 
+            'func_args': self.func_args, 
+            'func_kwargs': self.func_kwargs
+        }
+        return str(info_dict)
+        
+
     def cancel(self):
 
         return False
