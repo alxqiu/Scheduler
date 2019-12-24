@@ -42,7 +42,6 @@ class Executor():
         data.update(default_config)
 
         r = requests.post(self.url_str + '/submitRequest', json = data)  
-            ###so far r is accessible and modificable by the ServerSideScript
         #defs of acceptable returns
         assert r.status_code != 404
         assert r.json()['priority'] is not None
@@ -63,9 +62,7 @@ class Executor():
         #minimal info in the query payload that is sent over, just wanted to have something
         #for the server to know that there is a request to GET info
             ###prevent this from being accessible later...
-
-        #needs to work with job_id
-    #replace all the business in fn with job_id
+    #needs to be accessed through job_id
     def _grab(self, job_id):
         query_payload = {'job_id': job_id, '_grab': True}
         r = requests.get(url = self.url_str + '/handleGETRequest', json = query_payload)
@@ -73,7 +70,8 @@ class Executor():
         assert r.json() is not None
         return r.json()
        
-        
+    #how to make sure that this can work without needing to go job by job?
+    #or is that necessary?
     def shutdown(self, wait = True):
         while wait:
             r = _grab(None)
@@ -102,9 +100,8 @@ class Future():
             'func_args': self.func_args, 
             'func_kwargs': self.func_kwargs
         }
-        return str(info_dict)
+        return info_dict
         
-
     def cancel(self):
 
         return False
