@@ -9,27 +9,38 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 ServerSideScript = Flask(__name__)
-data_for_jobs = {'jobOne': {'running': True, 'memory': 1024, 'priority': 2}, 
-               'jobTwo': {'running': True, 'priority': 1, 'memory': 2048}}
+
+#this should be the place where the job info is stored:
+    #'<job_id>': {'fn': <fn>, 'func_args': <*args>, 'func_kwargs': <**kwargs>, 
+    #   'job_id': <job_id>, 'memory': <memory>, 'priority': <priority>, 
+    #   'retries': <retries>, 'run_now': run_now}
+data_for_jobs = {'19838182.391829': {'fn': 'placeHolder', 'func_args': [], 
+    'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 1024, 
+    'priority': 2, 'retries': 1, 'run_now': True}}
 
 @ServerSideScript.route('/')
 def default():
     return 'Up and running!'
 
 #sends back unique id for a function in str form so its static
-def functionEncoder(fn):
+def function_encoder(fn):
     return str(datetime.datetime.now().timestamp())
+
+#should have a dedicated method to processing jobs in general, should have info
+#for the sake of seeing if any job is running at all
+def run_jobs():
+    return None
 
 
 #@ServerSideScript.route('/handleRequest', methods = ['POST', 'GET'])
 #just returns the json of whatever was sent through request
 #dev way to get a unique job id.  
-@ServerSideScript.route('/submitRequest', methods = ['POST'])
-def submitRequest():
+@ServerSideScript.route('/submit-request', methods = ['POST'])
+def submit_request():
     request_data = request.get_json()
 
     #adding encoded data
-    encoded_var = functionEncoder(request_data['fn'])
+    encoded_var = function_encoder(request_data['fn'])
     request_data['job_id'] = encoded_var
 
     #now we start a job and store the information in a variable
@@ -40,14 +51,21 @@ def submitRequest():
     data_for_jobs[encoded_var] = request_data
     return (request_data)
 
-#need another method to address NON-submit requests
-
+#need another method to address NON-submit requests, generic post request method
+@ServerSideScript.route('/post-request', methods = ['POST'])
+def post_request():
+    return None
 
 #send back data_for_jobs but only specifically for the id requested. 
-@ServerSideScript.route('/handleGETRequest', methods = ['GET'])
-def handleGETRequest():
+@ServerSideScript.route('/grab-job-info', methods = ['GET'])
+def grab_job_info():
     send = json.dumps(data_for_jobs.get(str(request.get_json()['job_id'])))
     return send
+
+#perhaps this could use a generic get request method?
+@ServerSideScript.route('/get-request', methods = ['GET'])
+def get_request():
+    return None
 
 if __name__ == '__main__':
     ServerSideScript.run(debug = True, host = '0.0.0.0')

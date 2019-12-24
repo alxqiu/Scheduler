@@ -23,9 +23,7 @@ class Executor():
         print(self.url_str)
     
     #condensed into the signature of the concurrent.futures.executor.submit() method, 
-    #with additional params noted in a separate dict: job_config = 
-    #       {'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
-        ##new signature:
+        ##new method signature:
             #submit(fn, *args, job_config, **kwargs):
     def submit(self, fn, *args, job_config = {}, **kwargs):
 
@@ -41,7 +39,7 @@ class Executor():
             default_config.update(job_config)
         data.update(default_config)
 
-        r = requests.post(self.url_str + '/submitRequest', json = data)  
+        r = requests.post(self.url_str + '/submit-request', json = data)  
         #defs of acceptable returns
         assert r.status_code != 404
         assert r.json()['priority'] is not None
@@ -49,7 +47,7 @@ class Executor():
         assert r.json()['retries'] is not None
         assert r.json()['job_id'] is not None
             #this type of formatting works, reference data through r.json()
-        print("r.text:\n\t" + r.text)
+        #print("r.text:\n\t" + r.text)
         job_id = r.json()['job_id']
 
         #make sure job_id can be saved in the future object
@@ -64,14 +62,14 @@ class Executor():
             ###prevent this from being accessible later...
     #needs to be accessed through job_id
     def _grab(self, job_id):
-        query_payload = {'job_id': job_id, '_grab': True}
-        r = requests.get(url = self.url_str + '/handleGETRequest', json = query_payload)
+        r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
         assert r.status_code != 404
         assert r.json() is not None
         return r.json()
        
     #how to make sure that this can work without needing to go job by job?
     #or is that necessary?
+        #need to rewrite this section so that each job has a running value
     def shutdown(self, wait = True):
         while wait:
             r = _grab(None)
@@ -90,15 +88,11 @@ class Future():
        self.fn = fn
        self.job_id = job_id
        self.url_str = url_str
-       self.func_args = args
-       self.func_kwargs = kwargs
     def future_info(self):
         info_dict = {
             'fn': self.fn, 
             'job_id': self.job_id, 
             'url_str': self.url_str, 
-            'func_args': self.func_args, 
-            'func_kwargs': self.func_kwargs
         }
         return info_dict
         
