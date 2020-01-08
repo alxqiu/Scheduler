@@ -101,8 +101,7 @@ class Future():
         
     def cancel(self):
         #check to see if it can be canceled, won't even attempt to cancel if it is running
-        processing = running()
-        if processing:
+        if running():
             #returns false if it is currently running
             return False
         else: 
@@ -123,7 +122,6 @@ class Future():
 
     def done(self):
          r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
-         #need to distinguish between if it was just not started (false) or complete/canceled (true)
          if (r.json()['cancelled'] or r.json()['complete']):
              return True
          else:
@@ -136,8 +134,6 @@ class Future():
         time_check = True
         return_value = None
         timer = 0.0
-
-        #new approach: we send requests on a time interval, and wait for satisfactory result
         while (time_check):
             time.sleep(1.0)
             timer += 1.0
@@ -152,10 +148,12 @@ class Future():
                 raise TimeoutError  
         return True
 
+    #what is return exception versus raise exception, we want this to simply return whatever was going on in the job
     def exception(self, timeout = None):
-        #check for successful run without any exceptions
-
+        if (r.json['cancelled']):
+                raise CancelledError
         return None
+
     def add_done_callback(self, fn):
         fn
     class TimeoutError(Exception):
