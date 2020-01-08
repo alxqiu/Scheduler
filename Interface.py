@@ -12,6 +12,8 @@
 import requests
 import json
 import urllib.parse
+from threading import Event
+from time import sleep
 
 class Executor():
     #delete this __init__ when I've finished server side implementation
@@ -83,6 +85,7 @@ class Executor():
             
 
 #future doesn't need much aside from a means to identify a job and the way to contact it in the server
+#when you read result, if its not completed it would just be blocked, as the job is still running
 class Future():
     def __init__(self, fn, job_id, url_str, *args, **kwargs):
        self.fn = fn
@@ -97,29 +100,69 @@ class Future():
         return info_dict
         
     def cancel(self):
+        #check to see if it can be canceled, won't even attempt to cancel if it is running
+        processing = running()
+        if processing:
+            #returns false if it is currently running
+            return False
+        else: 
+            r = requests.post(self.url_str)
 
-        return False
+            #change this so that it can have info to cancel a job, and have it specific for a job_id
+            return True
 
     def cancelled(self):
-        return ((self.running) == False)
+        r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
+        return r.json()['cancelled']
 
+    #distinct from the done method as this works whether started or not
     def running(self):
-        r = requests.get(self.url_str)
-        #grabs status of whether the job object is running or not
-        return r.running
+        #make sure you check to see if it was started, DO NOT depend on done()
+         r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
+         return r.json()['running']
 
     def done(self):
-        return True
-    def result(self, timeout = None):
-        success = False
+         r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
+         #need to distinguish between if it was just not started (false) or complete/canceled (true)
+         if (r.json()['cancelled'] or r.json()['complete']):
+             return True
+         else:
+             return False
 
-        if success:
-            return success
-        else:
-            return success
+    #can't do regular "done" thing, needs to 
+        #raise CancelledError
+        #and also mirror the exception raised by the call
+    def result(self, timeout = None):
+        time_check = True
+        return_value = None
+        timer = 0.0
+
+        #new approach: we send requests on a time interval, and wait for satisfactory result
+        while (time_check):
+            time.sleep(1.0)
+            timer += 1.0
+            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
+
+            ##have a point here where exceptions can be inherited
+            if (r.json['cancelled']):
+                raise CancelledError
+            if (r.json()['complete'] == True):
+                break
+            if (timer > timeout):
+                raise TimeoutError  
+        return True
+
     def exception(self, timeout = None):
         #check for successful run without any exceptions
 
         return None
     def add_done_callback(self, fn):
         fn
+    class TimeoutError(Exception):
+        #raise when there is a timeout on the results method for futures.
+        pass
+    class CancelledError(Exception):
+        pass
+
+
+
