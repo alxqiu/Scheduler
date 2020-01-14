@@ -22,11 +22,12 @@ class Executor():
            
         #recode this section into taking host and port as params
 
-        print(self.url_str)
-    
+
     #condensed into the signature of the concurrent.futures.executor.submit() method, 
         ##new method signature:
             #submit(fn, *args, job_config, **kwargs):
+        #########
+        #ask: should run_now displace the original job running and put that as "untouched" or should it wait?
     def submit(self, fn, *args, job_config = {}, **kwargs):
 
         data  = {'fn': fn, 'func_args': args, 'func_kwargs': kwargs}
@@ -51,8 +52,6 @@ class Executor():
             #this type of formatting works, reference data through r.json()
         #print("r.text:\n\t" + r.text)
         job_id = r.json()['job_id']
-
-        #make sure job_id can be saved in the future object
         new_future = Future(fn, job_id, self.url_str, args, kwargs)
         return new_future  
         
@@ -69,19 +68,17 @@ class Executor():
         assert r.json() is not None
         return r.json()
        
-    #how to make sure that this can work without needing to go job by job?
-    #or is that necessary?
-        #need to rewrite this section so that each job has a running value
+    #rewrite this to be based on future objects
     def shutdown(self, wait = True):
-        while wait:
-            r = _grab(None)
-            if (r['running'] == True):
-                wait = False
-        #at the end of waiting, send a post to shut down operations
-        r = request.post(url = self.url_str, json = {'shutdown': True})
+        if wait:
+            while wait:
+               # need to write a request that can cover the futures that the interface has access to?
+                if (r['running'] == True):
+                    wait = False
 
-        #add in thing for r to have success attr for this part
-        return r.success
+        #if done waiting, or if not waiting, send a post to shut down operations
+        r = request.post(url = self.url_str + '/kill')
+        print('shut down achieved')
             
 
 #future doesn't need much aside from a means to identify a job and the way to contact it in the server
@@ -91,6 +88,8 @@ class Future():
        self.fn = fn
        self.job_id = job_id
        self.url_str = url_str
+       self.func_args = args
+       self.func_kwargs = kwargs
     def future_info(self):
         info_dict = {
             'fn': self.fn, 
@@ -105,23 +104,22 @@ class Future():
             #returns false if it is currently running
             return False
         else: 
-            r = requests.post(self.url_str)
-
+            r = requests.post(self.url_str + '/cancel-job', json = {'job_id': self.job_id})
             #change this so that it can have info to cancel a job, and have it specific for a job_id
             return True
 
     def cancelled(self):
-        r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
+        r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
         return r.json()['cancelled']
 
     #distinct from the done method as this works whether started or not
     def running(self):
         #make sure you check to see if it was started, DO NOT depend on done()
-         r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
+         r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
          return r.json()['running']
 
     def done(self):
-         r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
+         r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
          if (r.json()['cancelled'] or r.json()['complete']):
              return True
          else:
@@ -137,25 +135,49 @@ class Future():
         while (time_check):
             time.sleep(1.0)
             timer += 1.0
-            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': job_id})
-
-            ##have a point here where exceptions can be inherited
+            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
             if (r.json['cancelled']):
                 raise CancelledError
+            if (r.json['exception'] is not None):
+                #develop system to have the same exceptions
+                raise r.json['exception']
             if (r.json()['complete'] == True):
                 break
             if (timer > timeout):
                 raise TimeoutError  
         return True
 
-    #what is return exception versus raise exception, we want this to simply return whatever was going on in the job
+    #we are talking about the exceptions in the job itself
     def exception(self, timeout = None):
-        if (r.json['cancelled']):
+        time_check = True
+        return_value = None
+        timer = 0.0
+        while (time_check):
+            time.sleep(1.0)
+            timer += 1.0
+            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
+            if (r.json['cancelled']):
                 raise CancelledError
-        return None
+            if (r.json()['complete'] == True):
+                break
+            if (timer > timeout):
+                raise TimeoutError
+        #per project parameters, this will return None if no exception is there
+        return r.json()['exception']
 
+
+    #this just runs a function directly after the completion of the job
+    #can assume these functions are only going to reference the job info itself, 
+        #as they take the future object as the only parameter
+        #they can be as simple as printing the results of the job
+                ##########
     def add_done_callback(self, fn):
-        fn
+        self.job_id = 0
+        while (waiting):
+            time.sleep(1.0)
+        fn()
+           
+
     class TimeoutError(Exception):
         #raise when there is a timeout on the results method for futures.
         pass
