@@ -8,6 +8,7 @@ from flask import Flask, request
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
+import pickle
 
 ServerSideScript = Flask(__name__)
 
@@ -15,7 +16,11 @@ ServerSideScript = Flask(__name__)
     #'<job_id>': {'fn': <fn>, 'func_args': <*args>, 'func_kwargs': <**kwargs>, 
     #   'job_id': <job_id>, 'memory': <memory>, 'priority': <priority>, 
     #   'retries': <retries>, 'run_now': run_now}
-#change data storage to pickle format
+#change data storage to pickle format, have the function name pickled
+    #convert each job back into object, and figure out which package and modules it is in, and load it for me
+
+#pickled and non pickled:
+    #only 'fn', 'func_args', and 'func_kwargs' will be pickled
 data_for_jobs = {'19838182.391829': {'fn': 'placeHolder', 'func_args': [], 
     'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 1024, 
     'priority': 2, 'retries': 1, 'run_now': True, 'complete': False, 
@@ -37,55 +42,74 @@ def job_manager():
         #every iteration of this large loop is one job ran
         #adjust sleep time arbitrarily, or by system constraints
         time.sleep(2.4)
-        
-        #update the viable jobs list
-        runnable_jobs = dict()        
-        for job in data_for_jobs.items():
-            #jobs are moved to tuple form when parsed in forloop
-            job_properties = job[1]
-            if (job_properties['cancelled'] == job_properties['complete']):
-                runnable_jobs.update({job[0]: job[1]})
+        if (data_for_jobs is not None):
+            #update the viable jobs list
+            runnable_jobs = dict()        
+            for job in data_for_jobs.items():
+                #jobs are moved to tuple form when parsed in forloop
+                job_properties = job[1]
+                if (job_properties['cancelled'] == job_properties['complete']):
+                    runnable_jobs.update({job[0]: job[1]})
 
-        target_id = ""
-        highest_prior = runnable_jobs.get(list(runnable_jobs.keys())[0]).get('priority')
-        #make separate loop to traverse for run_now properties
-        for job in runnable_jobs.items():
-            job_properties = job[1]
-            #problem: on equal priorities, run_now won't trump priority if highest goes first
-            if job_properties.get('run_now') == True:
-                target_id = job[0]
-                break
-        for job in runnable_jobs.items():
-            job_properties = job[1]
-            if (highest_prior >= job_properties.get('priority')):
-                highest_prior = job_properties.get('priority')
-                target_id = job[0]
-                break
+            target_id = list(runnable_jobs.keys())[0]
+            highest_prior = runnable_jobs.get(list(runnable_jobs.keys())[0]).get('priority')
+            #now it can trump priority, and defers to oldest. 
+            for job in runnable_jobs.items():
+                job_properties = job[1]
+                if job_properties.get('run_now') == True:
+                    target_id = job[0]
+                    break
+                #so far, equal priority gives run to oldest received 
+                if (highest_prior > job_properties.get('priority')):
+                    highest_prior = job_properties.get('priority')
+                    target_id = job[0]
+                
         #run_job will do change the running property later
-        run_job(target_id)
+            run_job(target_id)
     return None
 
 #should have a dedicated method to processing jobs in general, should have info
 #for the sake of seeing if any job is running at all
             ###########
+            #make sure only one running at the same time
 def run_job(job_id):
-    #have a part where the job is ran and the status ['complete'] is changed to True
+    #make sure retries is monitored and adjusted
+    #whatever is ran is iterated over the for loop on the int in retries box
+
+    fn = pickle.loads(data_for_jobs.get(job_id)['fn'])
+    func_args = pickle.loads(data_for_jobs.get(job_id)['func_args'])
+    func_kwargs = pickle.loads(data_for_jobs.get(job_id)['func_kwargs'])
     data_for_jobs.get(job_id)['running'] = True
+    for i in range(data_for_jobs.get(job_id)['retries'] + 1):
+         try:
+             fn(func_args, func_kwargs)
+         except:
+             #placeholder for exceptions
+             data_for_jobs.get(job_id)['exceptions'] = 'Exception_One'
+
+         ###here is where the "running" of the job takes place
+         #how they work:
+            #unpickling here: and then the function and its args exists
+             #input would be a string of fn which would be a pickle object, and the pickle module would locate that
+             #assuming same modules and packages are present on both interface and server objects
+            #just make a function call, put into "try catch", "try except thing 
 
     #need to encapsulate the results, so you can catch if there are any exceptions that appear
-
-    #check if the job is finished and isn't returning in 
+    #accessing job properties like this works 
     data_for_jobs.get(job_id) ['complete'] = True
     return None
 
-#what do we do with cancel orders on already-canceled jobs?
+#not sure the definitions of running a function
             ############
 @ServerSideScript.route('/cancel-job', methods = ['POST'])
 def cancel_job():
+    job_id = request.get_json()['job_id'] 
+    assert data_for_jobs.get(job_id)['cancelled'] is False
     #this should edit the ['cancelled'] attr of the job
 
     data_for_jobs.get(job_id)['cancelled'] = True
     return None
+
 
 #@ServerSideScript.route('/handleRequest', methods = ['POST', 'GET'])
 #just returns the json of whatever was sent through request
@@ -107,9 +131,9 @@ def submit_request():
 
     #now we start a job and store the information in a variable
     ##---> insert a job start function here
+            #####or do I if the running function is passively running
 
-    #the variable containing the dict of job information sent through is updated with an unique id,
-    #and the data sent back tells the interface what that id is.  
+    #the variable containing the dict of job information sent through is updated with an unique id,  
     data_for_jobs[encoded_var] = request_data
     return (request_data)
 

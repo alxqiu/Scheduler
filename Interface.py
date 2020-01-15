@@ -10,6 +10,7 @@
 
     #verify security headers in the server, thats more of a complex task
 import requests
+import pickle
 import json
 import urllib.parse
 from threading import Event
@@ -29,12 +30,18 @@ class Executor():
         #########
         #ask: should run_now displace the original job running and put that as "untouched" or should it wait?
     def submit(self, fn, *args, job_config = {}, **kwargs):
-
+        #fn: denotes a function object: pickle it into a string. Doesn't store function itself, but its a fully qualified
+        #name for the function. 
+        fn = pickle.dumps(fn)
+        args = pickle.dumps(args)
+        kwargs = pickle.dumps(kwargs)
+            # pickle all the args and then unpickle on the server side, just don't pickle job_config. 
         data  = {'fn': fn, 'func_args': args, 'func_kwargs': kwargs}
             #the submitted callable "fn" should be executed as fn(*args, **kwargs)
         default_config = {'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
         #if input is none, we send default values
         #check for elements present in job_config but not in default keys, then adding appropriate values to default
+
         if job_config is not None:
             assert len(set(job_config.keys()) - set(default_config.keys())) == 0
                 #I would have used (if setA.difference(setB) is None), but difference returns 'set()'

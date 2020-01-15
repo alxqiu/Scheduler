@@ -1,44 +1,66 @@
 import urllib.parse
 import json
 import requests
+import pickle
 
 
-data_for_jobs = {'testjobone': {'fn': 'placeHolder', 'func_args': [], 
-    'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 1024, 
+
+
+data_for_jobs = {'testjobone': {'job_id': 19838182.391829, 
+    'priority': 2, 'run_now': False, 'complete': False, 
+    'running': False, 'cancelled': False, 'exception': None}, 
+                 'testjobtwo': {'job_id': 19838182.391829, 
     'priority': 2, 'retries': 1, 'run_now': False, 'complete': False, 
-    'running': False, 'cancelled': False, 'exception': None}, 'testjobtwo': {'fn': 'placeHolder', 'func_args': [], 
-    'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 1024, 
-    'priority': 2, 'retries': 1, 'run_now': True, 'complete': False, 
+    'running': False, 'cancelled': False, 'exception': None},
+                 'testjobthree': {'job_id': 19838182.391829, 
+    'priority': 2, 'retries': 1, 'run_now': False, 'complete': False, 
     'running': False, 'cancelled': False, 'exception': None}}
 
-print('data for jobs:\n\t' + str(data_for_jobs))
-runnable_jobs = dict()
-for parsed_dict in data_for_jobs.items():
-    print('parsed dict\n\t' + str(parsed_dict))
+
+def pickle_test_func(number_one, number_two, var_one = 'default', var_two = ''):
+    print('number_one:\t' + str(number_one))
+    print('number_two:\t' + str(number_two))
+    print('var_one:\t' + str(var_one))
+    print('var_two:\t' + str(var_two))
+
+pickle_test_job = {'pickle_test_id': {'fn': pickle_test_func, 'func_args': [], 
+                    'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 4096,
+                    'run_now': True, 'retries': 4, 'priority': 6, 'complete': False, 
+                    'running': False, 'cancelled': False, 'exception': None}}
+#print('pickel_test_id:\t' + str(pickle.dumps('placeholder_fn')))
+print('pickel_test_fn:\t' + str(pickle.dumps(pickle_test_job.get('pickle_test_id').get('fn'))))
+
+#print('data for jobs:\n\t' + str(data_for_jobs))
+#runnable_jobs = dict()
+#data_for_jobs.get('testjobtwo') ['complete'] = True
+#for parsed_dict in data_for_jobs.items():
+    #print('parsed dict\n\t' + str(parsed_dict))
             #get down to lower layer of all_dicts here
             #should access first key in the smallest parsed_dict, or the name of the job, 
             #and then the properties of said job
-    check_dict = parsed_dict[1]
+   # check_dict = parsed_dict[1]
             #only time these conditions are equal is if neither has been started
-    if (check_dict['cancelled'] == check_dict['complete']):
-        runnable_jobs.update({parsed_dict[0]: parsed_dict[1]})
+ #   if (check_dict['cancelled'] == check_dict['complete']):
+  #      runnable_jobs.update({parsed_dict[0]: parsed_dict[1]})
 #print('runnable dicts\n\t' + str(runnable_dicts))
 
-target_id = ""
-highest_prior = runnable_jobs.get(list(runnable_jobs.keys())[0]).get('priority')
-for job in runnable_jobs.items():
+#grab initial target id and priority from the first item on runnable jobs
+#target_id = list(runnable_jobs.keys())[0]
+#highest_prior = runnable_jobs.get(list(runnable_jobs.keys())[0]).get('priority')
+#for job in runnable_jobs.items():
                 #sub represents the value of the initial "fn", so all the job info in one
                 # and need to kick out key-value pairs that are already completed
-            job_properties = job[1]
-            if job_properties.get('run_now') == True:
-                target_id = job[0]
-                break
+  #          job_properties = job[1]
+ #           if job_properties.get('run_now') == True:
+   #             target_id = job[0]
+    #            break
 
-            if (highest_prior >= job_properties.get('priority')):
-                highest_prior = job_properties.get('priority')
-                target_id = job[0]
-                break
-print(target_id)
+     #       if (highest_prior > job_properties.get('priority')):
+      #          highest_prior = job_properties.get('priority')
+       #         target_id = job[0] 
+                
+                
+#print(target_id)
 
 #print("works")
 #url = 'https://postman-echo.com/post'
