@@ -15,6 +15,7 @@ import json
 import urllib.parse
 from threading import Event
 from time import sleep
+import base64
 
 class Executor():
     #delete this __init__ when I've finished server side implementation
@@ -32,9 +33,9 @@ class Executor():
     def submit(self, fn, *args, job_config = {}, **kwargs):
         #fn: denotes a function object: pickle it into a string. Doesn't store function itself, but its a fully qualified
         #name for the function. 
-        fn = pickle.dumps(fn)
-        args = pickle.dumps(args)
-        kwargs = pickle.dumps(kwargs)
+        fn = str(base64.b64encode(pickle.dumps(fn)).decode('utf-8'))
+        args = str(base64.b64encode(pickle.dumps(args)).decode('utf-8'))
+        kwargs = str(base64.b64encode(pickle.dumps(kwargs)).decode('utf-8'))
             # pickle all the args and then unpickle on the server side, just don't pickle job_config. 
         data  = {'fn': fn, 'func_args': args, 'func_kwargs': kwargs}
             #the submitted callable "fn" should be executed as fn(*args, **kwargs)
@@ -42,23 +43,30 @@ class Executor():
         #if input is none, we send default values
         #check for elements present in job_config but not in default keys, then adding appropriate values to default
 
-        if job_config is not None:
-            assert len(set(job_config.keys()) - set(default_config.keys())) == 0
-                #I would have used (if setA.difference(setB) is None), but difference returns 'set()'
-                #and I don't know how to express that as a value to compare     
+        if len(job_config.keys()) is not 0:
+            assert set(job_config.keys()) < set(default_config.keys())
+            #this allows the new, explicitly defined values to override defaults.      
             default_config.update(job_config)
+        #regardless of whether or not job_config is explicitly defined, this must occur for functionality
+        #of the server, so that the data can default to certain values. If job_config is explicitly defined, 
+        #defined values won't be overwritten. 
+
         data.update(default_config)
 
         r = requests.post(self.url_str + '/submit-request', json = data)  
+            #change so that r is only the job_id in a dict
+
         #defs of acceptable returns
-        assert r.status_code != 404
-        assert r.json()['priority'] is not None
-        assert r.json()['memory'] is not None
-        assert r.json()['retries'] is not None
-        assert r.json()['job_id'] is not None
+        assert r.status_code == 200
+        #assert r.json()['priority'] is not None
+        #assert r.json()['memory'] is not None
+        #assert r.json()['retries'] is not None
+        #assert r.json()['job_id'] is not None
+
             #this type of formatting works, reference data through r.json()
         #print("r.text:\n\t" + r.text)
-        job_id = r.json()['job_id']
+        job_id = r.json().get('job_id')
+        assert job_id is not None
         new_future = Future(fn, job_id, self.url_str, args, kwargs)
         return new_future  
         
@@ -178,10 +186,18 @@ class Future():
         #as they take the future object as the only parameter
         #they can be as simple as printing the results of the job
                 ##########
+
+                #need to make this a background process, to make sure it can execute when it is done. 
+                #or perhaps consolidate requests to get a better picture on status, have a passively executing GET request?
+                #then redistribute the info across the methods that need it?
     def add_done_callback(self, fn):
         self.job_id = 0
+        waiting = True
         while (waiting):
             time.sleep(1.0)
+            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
+            if (r.json['cancelled'] or r.json['complete']):
+                waiting = False
         fn()
            
 

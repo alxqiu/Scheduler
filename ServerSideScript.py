@@ -9,6 +9,9 @@ import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import time
 import pickle
+import threading
+import base64
+from inspect import signature
 
 ServerSideScript = Flask(__name__)
 
@@ -24,7 +27,7 @@ ServerSideScript = Flask(__name__)
 data_for_jobs = {'19838182.391829': {'fn': 'placeHolder', 'func_args': [], 
     'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 1024, 
     'priority': 2, 'retries': 1, 'run_now': True, 'complete': False, 
-    'running': False, 'cancelled': False, 'exception': None}}
+    'running': False, 'cancelled': False, 'exception': None, 'result': None}}
 
 @ServerSideScript.route('/')
 def default():
@@ -75,14 +78,23 @@ def job_manager():
 def run_job(job_id):
     #make sure retries is monitored and adjusted
     #whatever is ran is iterated over the for loop on the int in retries box
+    lock = threading.Lock()
+    lock.acquire()
+    job_properties = data_for_jobs.get(job_id)
+    fn = pickle.loads(base64.b64decode(job_properties['fn'].encode('utf-8')))
+    func_args = pickle.loads(base64.b64decode(job_properties['func_args'].encode('utf-8')))
+    func_kwargs = pickle.loads(base64.b64decode(job_properties['func_kwargs'].encode('utf-8')))
 
-    fn = pickle.loads(data_for_jobs.get(job_id)['fn'])
-    func_args = pickle.loads(data_for_jobs.get(job_id)['func_args'])
-    func_kwargs = pickle.loads(data_for_jobs.get(job_id)['func_kwargs'])
+    #implement the inspect.signature or inspect.param lib to accurately call funcs
+
     data_for_jobs.get(job_id)['running'] = True
-    for i in range(data_for_jobs.get(job_id)['retries'] + 1):
+    for i in range(job_properties['retries'] + 1):
          try:
-             fn(func_args, func_kwargs)
+              #ensure that the arrangement of func_args and func_kwargs can match up to arguments in the function call
+              data_for_jobs.get(job_id)['result'] = fn(*func_args, **func_kwargs)
+         except TypeError:
+            #define what kind of context you want to give 
+            data_for_jobs.get(job_id)['exceptions'] = 'TypeError'
          except:
              #placeholder for exceptions
              data_for_jobs.get(job_id)['exceptions'] = 'Exception_One'
@@ -97,6 +109,7 @@ def run_job(job_id):
     #need to encapsulate the results, so you can catch if there are any exceptions that appear
     #accessing job properties like this works 
     data_for_jobs.get(job_id) ['complete'] = True
+    lock.release()
     return None
 
 #not sure the definitions of running a function
@@ -128,20 +141,31 @@ def submit_request():
     request_data['running'] = False
     request_data['cancelled'] = False
     request_data['exception'] = None
+    request_data['result'] = None
 
     #now we start a job and store the information in a variable
     ##---> insert a job start function here
             #####or do I if the running function is passively running
 
     #the variable containing the dict of job information sent through is updated with an unique id,  
+
+    #as data_for_jobs is modified somewhere else at the same time, it needs to be locked
+    lock = threading.Lock()
+    lock.acquire()
     data_for_jobs[encoded_var] = request_data
-    return (request_data)
+    lock.release()
+    #don't return everything back, try sending just status code and job_id
+    #return (request_data)
+    return {'job_id': request_data['job_id']}
 
 
 #send back data_for_jobs but only specifically for the id requested. 
 @ServerSideScript.route('/grab-job-info', methods = ['GET'])
 def grab_job_info():
+    lock = threading.Lock()
+    lock.acquire()
     send = json.dumps(data_for_jobs.get(str(request.get_json()['job_id'])))
+    lock.release()
     return send
 
 
@@ -157,6 +181,7 @@ def post_request():
 #shutdown function, as no command line to rely on
 @ServerSideScript.route('/kill', methods = ['POST'])
 def kill():
+    server_running = False
     func = request.get('werkzeug.server.shutdown')
     func()
     return "Quitting"

@@ -2,8 +2,15 @@ import urllib.parse
 import json
 import requests
 import pickle
+import base64
 
 
+#the test function as a module acessible for both the TestServer and this Script
+from lib import PickleTestFunc
+
+#this file isn't necessarily a module, its just a script.
+    #need a package, need to make a subdirectory, and make it package name, and make a package
+    #have the .py file in there, and have a intialization, that would make it a valid module
 
 
 data_for_jobs = {'testjobone': {'job_id': 19838182.391829, 
@@ -17,18 +24,50 @@ data_for_jobs = {'testjobone': {'job_id': 19838182.391829,
     'running': False, 'cancelled': False, 'exception': None}}
 
 
-def pickle_test_func(number_one, number_two, var_one = 'default', var_two = ''):
-    print('number_one:\t' + str(number_one))
-    print('number_two:\t' + str(number_two))
-    print('var_one:\t' + str(var_one))
-    print('var_two:\t' + str(var_two))
+#skeleton of the submit function from ServerSideScript
+    #now we should prioritize fitting args and kwargs to appropriate spots
+    # or should that be on the side of the server?
+def pickel_test(fn, *args, **kwargs):
+        
+    fn = str(base64.b64encode(pickle.dumps(fn)).decode('utf-8'))
+    args = str(base64.b64encode(pickle.dumps(args)).decode('utf-8'))
+    kwargs = str(base64.b64encode(pickle.dumps(kwargs)).decode('utf-8'))
+    
+    #at this point, <*args> is transformed into a list in <args>, and <**kwargs> into dict <kwargs>
 
-pickle_test_job = {'pickle_test_id': {'fn': pickle_test_func, 'func_args': [], 
-                    'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 4096,
-                    'run_now': True, 'retries': 4, 'priority': 6, 'complete': False, 
-                    'running': False, 'cancelled': False, 'exception': None}}
-#print('pickel_test_id:\t' + str(pickle.dumps('placeholder_fn')))
-print('pickel_test_fn:\t' + str(pickle.dumps(pickle_test_job.get('pickle_test_id').get('fn'))))
+    data = {'fn': fn, 'func_args': args, 'func_kwargs': kwargs}
+
+    r = requests.post('http://127.0.0.1:5000' + '/submit-request-2', json = data)
+    print(r.text)
+
+
+
+####error as the TestServer2.py file doesn't have access to pickle_test_func
+pickel_test(PickleTestFunc.pickle_test_func, 0, 'twenty-six', a ='b', b = 'c', c = 'a')
+
+###test cases for content of r objects
+#r = requests.post('http://127.0.0.1:5000' + '/post-request', json = data_for_jobs)
+#print(r.text)
+
+#job_config = dict({})
+#assert len(job_config.keys()) is not 0
+
+####testing basic encoding/decoding/string stuff
+#print(str(pickle.dumps(PickleTestFunc.pickle_test_func)))
+#this one works. 
+#key = str(base64.b64encode(pickle.dumps(PickleTestFunc.pickle_test_func)).decode('utf-8'))
+#print(key)
+#this is same as OG pickled bytes by the way
+#print(base64.b64decode(key.encode('utf-8')))
+
+#data  = {'fn': 'fn', 'func_args': 'args', 'func_kwargs': 'kwargs', 'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
+#r = requests.post('http://127.0.0.1:5000' + '/submit-request', json = data)
+
+#print(str(r.json().get('job_id')) + " " + str(r.status_code))
+
+#default_config = {'memory': None, 'priority': 1, 'retries': 0, 'run_now': False}
+#job_config = {'memory': None, 'mutate': True}
+#assert set(job_config.keys()) < set(default_config.keys())
 
 #print('data for jobs:\n\t' + str(data_for_jobs))
 #runnable_jobs = dict()
