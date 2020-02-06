@@ -42,16 +42,25 @@ def function_encoder(fn):
 def get_job_data():
     return data_for_jobs
 
-server_running = True
 #make sure I have a function to manage all the running of the jobs
                 #######currently not suitable
+server_running = True
+runnable_jobs = dict()
+
+#@ServerSideScript
 def job_manager():
+    #will make this non-global after finishing debug
+    global runnable_jobs
+    revo = 0
     while (server_running):
         #every iteration of this large loop is one job ran
         #adjust sleep time arbitrarily, or by system constraints
+        print(revo)
+        revo += 1
         time.sleep(2.4)
-        if (data_for_jobs is not None):
+        if (data_for_jobs) is True:
             #update the viable jobs list
+            #will make runnable jobs private to this function after correctly debugged
             runnable_jobs = dict()        
             for job in data_for_jobs.items():
                 #jobs are moved to tuple form when parsed in forloop
@@ -92,7 +101,6 @@ def run_job(job_id):
 
     #implement the inspect.signature or inspect.param lib to accurately call funcs
     data_for_jobs.get(job_id)['running'] = True
-    keep_running = True
     for i in range(job_properties['retries'] + 1):
          try:
               #ensure that the arrangement of func_args and func_kwargs can match up to arguments in the function call
@@ -121,11 +129,13 @@ def run_job(job_id):
             ############
 @ServerSideScript.route('/cancel-job', methods = ['POST'])
 def cancel_job():
+    global data_for_jobs
+    lock.acquire()
     job_id = request.get_json()['job_id'] 
     assert data_for_jobs.get(job_id)['cancelled'] is False
     #this should edit the ['cancelled'] attr of the job
-
     data_for_jobs.get(job_id)['cancelled'] = True
+    lock.release()
     return None
 
 
@@ -164,9 +174,15 @@ def grab_job_info():
     lock.release()
     return send
 
+#for debugging
 @ServerSideScript.route('/get-data-for-jobs', methods = ['GET'])
 def get_data_for_jobs():
     return data_for_jobs
+
+#also for debugging
+@ServerSideScript.route('/get-runnable-jobs', methods = ['GET'])
+def get_runnable_jobs():
+    return runnable_jobs
 
 #perhaps this could use a generic get request method?
 @ServerSideScript.route('/get-request', methods = ['GET'])
@@ -185,11 +201,23 @@ def kill():
     func()
     return "Quitting"
 
-
+class myThread (threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+    def run(self):
+        job_manager()
 if __name__ == '__main__':
+    #create a thread with job_manager function to keep running before server starts
+        ##here
+        ##here
+    myThread = myThread()
+    myThread.run()
+
+    #wont occur at same time as myThread
     ServerSideScript.run(debug = True, host = '0.0.0.0')
     ###fix the processing, when it happens, how often it iterates, etc. 
-    job_manager()
 
+    #THIS ONLY OCCURS AFTER SHUTDOWN, SO DON'T have this method here
+    #job_manager()
 
 

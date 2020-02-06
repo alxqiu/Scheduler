@@ -62,8 +62,13 @@ class Executor():
         assert job_id is not None
         new_future = Future(fn, job_id, self.url_str, args, kwargs)
         return new_future  
+
+    #debugging functions to view the serverside instance variables
     def get_data_for_jobs(self):
         r = requests.get(url = self.url_str + '/get-data-for-jobs')
+        return r.text
+    def get_runnable_jobs(self):
+        r = requests.get(url = self.url_str + '/get-runnable-jobs')
         return r.text
 
     #INTERNAL FUNCTION: grab info from server
