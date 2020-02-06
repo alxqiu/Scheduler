@@ -24,10 +24,12 @@ ServerSideScript = Flask(__name__)
 
 #pickled and non pickled:
     #only 'fn', 'func_args', and 'func_kwargs' will be pickled
-data_for_jobs = {'19838182.391829': {'fn': 'placeHolder', 'func_args': [], 
-    'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 1024, 
-    'priority': 2, 'retries': 1, 'run_now': True, 'complete': False, 
-    'running': False, 'cancelled': False, 'exception': None, 'result': None}}
+#data_for_jobs = {'19838182.391829': {'fn': 'placeHolder', 'func_args': [], 
+ #   'func_kwargs': {}, 'job_id': 19838182.391829, 'memory': 1024, 
+  #  'priority': 2, 'retries': 1, 'run_now': True, 'complete': False, 
+   # 'running': False, 'cancelled': False, 'exception': None, 'result': None}}
+data_for_jobs = {}
+lock = threading.Lock()
 
 @ServerSideScript.route('/')
 def default():
@@ -36,6 +38,9 @@ def default():
 #sends back unique id for a function in str form so its static
 def function_encoder(fn):
     return str(datetime.datetime.now().timestamp())
+
+def get_job_data():
+    return data_for_jobs
 
 server_running = True
 #make sure I have a function to manage all the running of the jobs
@@ -52,7 +57,7 @@ def job_manager():
                 #jobs are moved to tuple form when parsed in forloop
                 job_properties = job[1]
                 if (job_properties['cancelled'] == job_properties['complete']):
-                    runnable_jobs.update({job[0]: job[1]})
+                    runnable_jobs[job[0]] = job[1]
 
             target_id = list(runnable_jobs.keys())[0]
             highest_prior = runnable_jobs.get(list(runnable_jobs.keys())[0]).get('priority')
@@ -78,7 +83,7 @@ def job_manager():
 def run_job(job_id):
     #make sure retries is monitored and adjusted
     #whatever is ran is iterated over the for loop on the int in retries box
-    lock = threading.Lock()
+    global data_for_jobs
     lock.acquire()
     job_properties = data_for_jobs.get(job_id)
     fn = pickle.loads(base64.b64decode(job_properties['fn'].encode('utf-8')))
@@ -86,19 +91,19 @@ def run_job(job_id):
     func_kwargs = pickle.loads(base64.b64decode(job_properties['func_kwargs'].encode('utf-8')))
 
     #implement the inspect.signature or inspect.param lib to accurately call funcs
-
     data_for_jobs.get(job_id)['running'] = True
+    keep_running = True
     for i in range(job_properties['retries'] + 1):
          try:
               #ensure that the arrangement of func_args and func_kwargs can match up to arguments in the function call
               data_for_jobs.get(job_id)['result'] = fn(*func_args, **func_kwargs)
-         except TypeError:
-            #define what kind of context you want to give 
-            data_for_jobs.get(job_id)['exceptions'] = 'TypeError'
+              break
          except:
              #placeholder for exceptions
+             #we are sending all exceptions, even generic ones back to the interface
+             #should have abstractified code here for that
              data_for_jobs.get(job_id)['exceptions'] = 'Exception_One'
-
+        
          ###here is where the "running" of the job takes place
          #how they work:
             #unpickling here: and then the function and its args exists
@@ -129,30 +134,22 @@ def cancel_job():
 #dev way to get a unique job id.  
 @ServerSideScript.route('/submit-request', methods = ['POST'])
 def submit_request():
+    global data_for_jobs
     request_data = request.get_json()
-
-    #adding encoded data
-    encoded_var = function_encoder(request_data['fn'])
-
     #adding new information directly linked to functionality in the server side
-    request_data['job_id'] = encoded_var
+    request_data['job_id'] = function_encoder(request_data['fn'])
     request_data['complete'] = False
     #make sure this is invoked with run
     request_data['running'] = False
     request_data['cancelled'] = False
     request_data['exception'] = None
-    request_data['result'] = None
-
-    #now we start a job and store the information in a variable
-    ##---> insert a job start function here
-            #####or do I if the running function is passively running
-
-    #the variable containing the dict of job information sent through is updated with an unique id,  
+    request_data['result'] = None  
 
     #as data_for_jobs is modified somewhere else at the same time, it needs to be locked
-    lock = threading.Lock()
     lock.acquire()
-    data_for_jobs[encoded_var] = request_data
+    #can this modify if there is no attribute with this key?
+    data_for_jobs[request_data['job_id']] = request_data
+    #data_for_jobs.update({request_data['job_id']: request_data})
     lock.release()
     #don't return everything back, try sending just status code and job_id
     #return (request_data)
@@ -162,12 +159,14 @@ def submit_request():
 #send back data_for_jobs but only specifically for the id requested. 
 @ServerSideScript.route('/grab-job-info', methods = ['GET'])
 def grab_job_info():
-    lock = threading.Lock()
     lock.acquire()
     send = json.dumps(data_for_jobs.get(str(request.get_json()['job_id'])))
     lock.release()
     return send
 
+@ServerSideScript.route('/get-data-for-jobs', methods = ['GET'])
+def get_data_for_jobs():
+    return data_for_jobs
 
 #perhaps this could use a generic get request method?
 @ServerSideScript.route('/get-request', methods = ['GET'])
@@ -189,7 +188,8 @@ def kill():
 
 if __name__ == '__main__':
     ServerSideScript.run(debug = True, host = '0.0.0.0')
-
+    ###fix the processing, when it happens, how often it iterates, etc. 
+    job_manager()
 
 
 

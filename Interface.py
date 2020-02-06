@@ -58,19 +58,14 @@ class Executor():
 
         #defs of acceptable returns
         assert r.status_code == 200
-        #assert r.json()['priority'] is not None
-        #assert r.json()['memory'] is not None
-        #assert r.json()['retries'] is not None
-        #assert r.json()['job_id'] is not None
-
-            #this type of formatting works, reference data through r.json()
-        #print("r.text:\n\t" + r.text)
         job_id = r.json().get('job_id')
         assert job_id is not None
         new_future = Future(fn, job_id, self.url_str, args, kwargs)
         return new_future  
-        
-        
+    def get_data_for_jobs(self):
+        r = requests.get(url = self.url_str + '/get-data-for-jobs')
+        return r.text
+
     #INTERNAL FUNCTION: grab info from server
         #memory, priority, retries, running, success, exception
         #minimal info in the query payload that is sent over, just wanted to have something
@@ -144,19 +139,21 @@ class Future():
         #raise CancelledError
         #and also mirror the exception raised by the call
     def result(self, timeout = None):
+        if (timeout is None): 
+            timeout = 1.0
         time_check = True
         return_value = None
         timer = 0.0
         while (time_check):
-            time.sleep(1.0)
+            sleep(1.0)
             timer += 1.0
-            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
-            if (r.json['cancelled']):
+            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id}).json()
+            if (r['cancelled'] == True):
                 raise CancelledError
-            if (r.json['exception'] is not None):
+            if (r['exception'] is not None):
                 #develop system to have the same exceptions
-                raise r.json['exception']
-            if (r.json()['complete'] == True):
+                raise r['exception']
+            if (r['complete'] == True):
                 break
             if (timer > timeout):
                 raise TimeoutError  
@@ -164,21 +161,23 @@ class Future():
 
     #we are talking about the exceptions in the job itself
     def exception(self, timeout = None):
+        if (timeout is None): 
+            timeout = 1.0
         time_check = True
         return_value = None
         timer = 0.0
         while (time_check):
-            time.sleep(1.0)
+            sleep(1.0)
             timer += 1.0
-            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
-            if (r.json['cancelled']):
+            r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id}).json()
+            if (r['cancelled'] == True):
                 raise CancelledError
-            if (r.json()['complete'] == True):
+            if (r['complete'] == True):
                 break
             if (timer > timeout):
                 raise TimeoutError
         #per project parameters, this will return None if no exception is there
-        return r.json()['exception']
+        return r['exception']
 
 
     #this just runs a function directly after the completion of the job
@@ -194,7 +193,7 @@ class Future():
         self.job_id = 0
         waiting = True
         while (waiting):
-            time.sleep(1.0)
+            sleep(1.0)
             r = requests.get(url = self.url_str + '/grab-job-info', json = {'job_id': self.job_id})
             if (r.json['cancelled'] or r.json['complete']):
                 waiting = False
