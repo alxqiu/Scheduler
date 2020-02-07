@@ -92,7 +92,7 @@ class Executor():
                     wait = False
 
         #if done waiting, or if not waiting, send a post to shut down operations
-        r = request.post(url = self.url_str + '/kill')
+        r = requests.post(url = self.url_str + '/kill')
         print('shut down achieved')
             
 
@@ -149,6 +149,7 @@ class Future():
         time_check = True
         return_value = None
         timer = 0.0
+        result = None
         while (time_check):
             sleep(1.0)
             timer += 1.0
@@ -159,10 +160,11 @@ class Future():
                 #develop system to have the same exceptions
                 raise r['exception']
             if (r['complete'] == True):
+                result = r['result']
                 break
             if (timer > timeout):
                 raise TimeoutError  
-        return True
+        return result
 
     #we are talking about the exceptions in the job itself
     def exception(self, timeout = None):
@@ -189,11 +191,6 @@ class Future():
     #can assume these functions are only going to reference the job info itself, 
         #as they take the future object as the only parameter
         #they can be as simple as printing the results of the job
-                ##########
-
-                #need to make this a background process, to make sure it can execute when it is done. 
-                #or perhaps consolidate requests to get a better picture on status, have a passively executing GET request?
-                #then redistribute the info across the methods that need it?
     def add_done_callback(self, fn):
         self.job_id = 0
         waiting = True

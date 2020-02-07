@@ -23,6 +23,16 @@ data_for_jobs = {'testjobone': {'job_id': 19838182.391829,
     'priority': 2, 'retries': 1, 'run_now': False, 'complete': False, 
     'running': False, 'cancelled': False, 'exception': None}}
 
+runnable_jobs = dict()
+for job in data_for_jobs.items():
+                #jobs are moved to tuple form when parsed in forloop
+    print(job)
+    job_properties = job[1]
+    if (job_properties['cancelled'] == job_properties['complete']):
+        runnable_jobs[job[0]] = job[1]
+print()
+print(runnable_jobs)
+
 
 #skeleton of the submit function from ServerSideScript
     #now we should prioritize fitting args and kwargs to appropriate spots
@@ -43,7 +53,7 @@ def pickel_test(fn, *args, **kwargs):
 
 
 ####error as the TestServer2.py file doesn't have access to pickle_test_func
-pickel_test(PickleTestFunc.pickle_test_func, 0, 'twenty-six', a ='b', b = 'c', c = 'a')
+#pickel_test(PickleTestFunc.pickle_test_func, 0, 'twenty-six', a ='b', b = 'c', c = 'a')
 
 ###test cases for content of r objects
 #r = requests.post('http://127.0.0.1:5000' + '/post-request', json = data_for_jobs)
@@ -69,37 +79,6 @@ pickel_test(PickleTestFunc.pickle_test_func, 0, 'twenty-six', a ='b', b = 'c', c
 #job_config = {'memory': None, 'mutate': True}
 #assert set(job_config.keys()) < set(default_config.keys())
 
-#print('data for jobs:\n\t' + str(data_for_jobs))
-#runnable_jobs = dict()
-#data_for_jobs.get('testjobtwo') ['complete'] = True
-#for parsed_dict in data_for_jobs.items():
-    #print('parsed dict\n\t' + str(parsed_dict))
-            #get down to lower layer of all_dicts here
-            #should access first key in the smallest parsed_dict, or the name of the job, 
-            #and then the properties of said job
-   # check_dict = parsed_dict[1]
-            #only time these conditions are equal is if neither has been started
- #   if (check_dict['cancelled'] == check_dict['complete']):
-  #      runnable_jobs.update({parsed_dict[0]: parsed_dict[1]})
-#print('runnable dicts\n\t' + str(runnable_dicts))
-
-#grab initial target id and priority from the first item on runnable jobs
-#target_id = list(runnable_jobs.keys())[0]
-#highest_prior = runnable_jobs.get(list(runnable_jobs.keys())[0]).get('priority')
-#for job in runnable_jobs.items():
-                #sub represents the value of the initial "fn", so all the job info in one
-                # and need to kick out key-value pairs that are already completed
-  #          job_properties = job[1]
- #           if job_properties.get('run_now') == True:
-   #             target_id = job[0]
-    #            break
-
-     #       if (highest_prior > job_properties.get('priority')):
-      #          highest_prior = job_properties.get('priority')
-       #         target_id = job[0] 
-                
-                
-#print(target_id)
 
 #print("works")
 #url = 'https://postman-echo.com/post'
