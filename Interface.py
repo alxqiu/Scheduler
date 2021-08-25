@@ -1,9 +1,5 @@
 
-#comment on the communication protocols, what kind of stuff should be included on the json file
-
-#for this part, literally just work on the client side, NOTHING that should be done on the server side
-#therefore, this should have the interface without any job_template class to make objects, 
-#don't need to have any sort of object creation here for jobs
+#No job instantiation, just an interface that could be implemented with a priority queue or map. 
 class Executor():
     def __init__(self, IP, port):
         self.server_info = (IP, port)
@@ -27,10 +23,6 @@ class Executor():
         #get the results from that future object to assess the info
         return new_future
 
-    #def map():
-        #can include map() later not now.  
-    
-    #next I want to include a function that will grab info from the server
         
     def shutdown(self, wait = True):
         #grab server info and try to assess if job is done or not
